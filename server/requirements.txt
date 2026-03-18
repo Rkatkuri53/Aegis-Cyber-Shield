@@ -6,3 +6,5 @@ google-adk==0.1.0
 Pillow==10.1.0
 python-multipart==0.0.6
 websockets==12.0
+pywin32==306
+google-cloud-firestore==2.14.0

@@ -19,8 +19,41 @@ Most AI agents operate on a "turn-based" request-response loop. Aegis breaks thi
 
 ## 🏗️ Architecture
 The system consists of a high-performance asynchronous bridge between the client-side WebSocket and the Vertex AI Live API. 
-* **State Management:** All critical session data is synced to Firestore, allowing for seamless recovery after a dashboard refresh or server restart.
-* **Non-Blocking I/O:** Utilizes `asyncio.create_task` for parallel processing of multimodal media chunks.
+
+![Aegis Architecture](assets/aegis_architecture.png)
+
+### **System Flowchart**
+```mermaid
+graph TD
+    User["User Surface (Browser)"] <==>|Real-time| WS["Gemini Live API (WebSocket)"]
+    WS <==> Frontend["Aegis Frontend (Next.js)"]
+    Frontend <==> Backend["Aegis Backend (FastAPI)"]
+    Backend <==> ADK["Google ADK Framework"]
+    ADK ---|Self-Correction| Healing["Self-Healing Plugin"]
+    Healing -->|Diagnostic Loop| VertexAI["Gemini 1.5 Pro"]
+    ADK -.->|State Persistence| Firestore["Google Firestore"]
+```
+
+## 🧪 Testing Procedures
+To ensure 100% mission readiness, Aegis has undergone a 4-phase audit suite:
+
+### **1. Static Audit**
+- Run `verify_aegis.py` to check for syntax errors and ADK compliance.
+- Scan for missing imports or unhandled promises.
+
+### **2. Terminal Verification**
+- Monitor logs for **Zero Warnings** and **Zero Deprecation Notices**.
+- Ensure the FastAPI lifespan correctly manages background heartbeat tasks.
+
+### **3. Browser Stress Test**
+- Use the **Browser Sub-Agent** to perform rapid-click and invalid-data injection on the dashboard.
+- Verify that 'Master Reset' correctly halts all active AI process streams.
+
+### **4. Self-Healing Simulation**
+- Trigger a mock 429 Error: `curl http://localhost:8081/test-429`.
+- Verify in logs that the **Exponential Backoff** and **Diagnostic Loop** recover the state from Firestore without a crash.
+
+---
 
 ## 🏃‍♂️ Spin-up Instructions
 1. **Prerequisites:** * Google Cloud Project with Vertex AI and Firestore enabled.

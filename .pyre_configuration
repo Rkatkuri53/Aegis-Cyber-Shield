@@ -1,0 +1,14 @@
+{
+  "source_directories": [
+    "server"
+  ],
+  "exclude": [
+    "**/__pycache__/**",
+    ".antigravity/.*",
+    ".cache/.*",
+    "node_modules/.*",
+    "dist/.*",
+    ".*\\.log",
+    ".*\\.db"
+  ]
+}

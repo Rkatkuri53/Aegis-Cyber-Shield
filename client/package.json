@@ -9,8 +9,20 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "autoprefixer": "^10.4.27",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.38.0",
+    "lucide-react": "^0.577.0",
     "next": "latest",
+    "postcss": "^8.5.8",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "25.5.0",
+    "@types/react": "19.2.14",
+    "typescript": "5.9.3"
   }
 }
