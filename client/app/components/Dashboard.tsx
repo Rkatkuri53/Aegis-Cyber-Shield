@@ -127,11 +127,14 @@ export default function Dashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   
   const scrollRef = useRef<HTMLDivElement>(null)
-  const apiUrl = "http://localhost:8081"
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://aegis-server-314798214199.us-central1.run.app"
 
   useEffect(() => {
     const connect = () => {
-      const ws = new WebSocket('ws://localhost:8081/ws/live')
+      const wsUrl = apiUrl.startsWith('https') 
+        ? apiUrl.replace('https', 'wss') + '/ws/live' 
+        : apiUrl.replace('http', 'ws') + '/ws/live'
+      const ws = new WebSocket(wsUrl)
       wsRef.current = ws
       
       ws.onopen = () => {
