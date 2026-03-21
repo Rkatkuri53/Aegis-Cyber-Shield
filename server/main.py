@@ -13,6 +13,10 @@ from agent_logic import AegisAgent
 from schemas import AegisState
 from typing import List, Optional
 import io
+from pathlib import Path
+
+# Cloud-Ready Relative Pathing
+BASE_DIR = Path(__file__).parent
 
 # Optional Firestore Integration
 try:
@@ -120,8 +124,8 @@ async def save_state_to_firestore():
             u'diag_state': {
                 u'swarm_active': state.swarm_active,
                 u'mirage_active': state.mirage_active,
-                u'last_reset': state.last_reset,
-                u'diag_session_id': state.diag_session_id
+                u'last_reset': state.last_reset or time.time(),
+                u'diag_session_id': state.diag_session_id or f"diag_{int(time.time())}"
             },
             u'timestamp': firestore.SERVER_TIMESTAMP
         })
@@ -140,7 +144,7 @@ async def recover_state_from_firestore():
             state.swarm_active = bool(data.get('swarm_active', False))
             state.mirage_active = bool(data.get('mirage_active', False))
             state.last_reset = float(data.get('last_reset', time.time()))
-            state.diag_session_id = str(data.get('diag_session_id', f"diag_{int(time.time())}"))
+            state.diag_session_id = str(data.get('diag_session_id') or f"diag_{int(time.time())}")
             print(f"[FIRESTORE] State Recovered: {state.diag_session_id}", flush=True)
         else:
             print("[FIRESTORE] No state found. Initializing clean state.", flush=True)

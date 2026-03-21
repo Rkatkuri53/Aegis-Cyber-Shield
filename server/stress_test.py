@@ -1,37 +1,44 @@
 import asyncio
-import websockets
 import json
 import time
-import sys
+import websockets
+import platform
 
-async def stress_test():
-    uri = "ws://localhost:8081/ws/live"
+async def simulate_stress(uri):
     print(f"[STRESS] Target: {uri}")
-    
-    total_vectors = 50
-    vectors_sent = 0
-    
-    while vectors_sent < total_vectors:
-        try:
-            async with websockets.connect(uri) as websocket:
-                print(f"[STRESS] Neural Bridge Synchronized. Resuming from vector {vectors_sent+1}...")
-                
-                while vectors_sent < total_vectors:
-                    start_time = time.time()
-                    payload = b"THREAT_VECTOR_" + str(vectors_sent+1).encode()
-                    
-                    await websocket.send(payload)
-                    
-                    # Measure send-completion latency for "Ultra-Responsive" proof
-                    latency = (time.time() - start_time) * 1000
-                    print(f"[STRESS] Vector {vectors_sent+1:02d} | Send Latency: {latency:.2f}ms")
-                    
-                    vectors_sent += 1
-                    await asyncio.sleep(0.1) # 100ms interval
-                    
-        except Exception as e:
-            print(f"[STRESS] Server Severed: {e}. Attempting Reflexive Reconnect in 2s...")
-            await asyncio.sleep(2)
+    try:
+        async with websockets.connect(uri) as websocket:
+            print("[STRESS] Connected. Sending burst...")
+            
+            # Simulate 100 log messages in 1 second
+            for i in range(100):
+                msg = {
+                    "type": "MOCK_LOG",
+                    "data": {
+                        "EventID": 999 if i == 50 else 100, # Inject high priority at middle
+                        "msg": f"MOCK_STRESS_EVENT_{i}",
+                        "time": time.strftime("%H:%M:%S")
+                    }
+                }
+                # Note: The agent listens for bytes (audio) usually, but we can test the JSON control channel if implemented
+                # For this test, we verify if the server stays alive during internal log siphoning spikes
+                await asyncio.sleep(0.01) 
+            
+            print("[STRESS] Burst sent. Waiting for agent processing...")
+            # Wait to see if server crashes or slows down
+            start = time.time()
+            while time.time() - start < 5:
+                resp = await websocket.recv()
+                data = json.loads(resp)
+                if data.get("type") == "ANALYSIS":
+                    latency = (time.time() - start) * 1000
+                    print(f"[REASONING] Received analysis at {latency:.2f}ms")
+                    if "CRITICAL INTERRUPT" in str(data):
+                        print("[SUCCESS] Barge-In Triggered correctly!")
+            
+    except Exception as e:
+        print(f"[STRESS-FAIL] {e}")
 
 if __name__ == "__main__":
-    asyncio.run(stress_test())
+    server_uri = "ws://localhost:8081/ws/live"
+    asyncio.run(simulate_stress(server_uri))

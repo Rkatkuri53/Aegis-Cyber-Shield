@@ -3,20 +3,26 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  Activity, 
   Shield, 
-  Zap, 
   Terminal, 
+  Activity, 
+  Lock, 
+  ChevronRight, 
+  ExternalLink, 
   AlertTriangle, 
-  CheckCircle, 
-  Mic, 
-  MicOff, 
+  Zap, 
+  Cpu, 
+  Wifi, 
+  ArrowRight,
+  Volume2,
+  VolumeX,
   RefreshCw,
+  Mic,
+  MicOff,
   Search,
-  Lock,
-  Cpu,
   Database
-} from 'lucide-react'
+} from 'lucide-react';
+import AudioPlayer from './AudioPlayer';
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
@@ -122,6 +128,8 @@ export default function Dashboard() {
   const [swarmMode, setSwarmMode] = useState(false)
   const [swarmCount, setSwarmCount] = useState(0)
   const [isMirage, setIsMirage] = useState(false)
+  const [isMuted, setIsMuted] = useState(false);
+  const [currentAudio, setCurrentAudio] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -143,15 +151,19 @@ export default function Dashboard() {
       }
       
       ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data)
-        if (msg.type === 'ANALYSIS') {
-          setAnalysis(msg.data)
-          if (msg.data.threat_stream) {
-            msg.data.threat_stream.forEach((l: any) => addLog(l))
+        const data = JSON.parse(event.data)
+        if (data.type === 'ANALYSIS') {
+          setAnalysis(data.data)
+          if (data.data.threat_stream) {
+            data.data.threat_stream.forEach((l: any) => addLog(l))
           }
-          if (msg.data.system_entropy) setEntropy(msg.data.system_entropy)
-        } else if (msg.type === 'HEARTBEAT') {
-          // Pulse handled via state sync or heartbeat if needed
+          if (data.data.system_entropy) setEntropy(data.data.system_entropy)
+        } else if (data.type === 'AUDIO') {
+          setCurrentAudio(data.data);
+          // Auto-reset chunk after short delay to allow fresh state for next chunk
+          setTimeout(() => setCurrentAudio(null), 50);
+        } else if (data.type === 'SYSTEM') {
+          addLog({ time: new Date().toLocaleTimeString(), msg: data.msg, type: "info" })
         }
       }
       
@@ -279,7 +291,18 @@ export default function Dashboard() {
             <Search className="w-3 h-3" /> Upload SOC Feed
           </button>
           <div className="h-6 w-px bg-white/10" />
-          <div className="flex items-center gap-2 px-3 py-1.5 glass-card bg-aegis-mint/5 border-aegis-mint/20">
+          <button 
+            onClick={() => setIsMuted(!isMuted)}
+            className={clsx(
+              "p-2 rounded-lg transition-all duration-300",
+              isMuted ? "bg-red-500/20 text-red-400" : "bg-cyan-500/20 text-cyan-400 animate-pulse"
+            )}
+            title={isMuted ? "Unmute Guardian" : "Mute Guardian"}
+          >
+            {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+          </button>
+
+          <div className="flex items-center space-x-2 px-3 py-1.5 bg-black/40 border border-white/5 rounded-lg">
             {isHydrating ? (
               <RefreshCw className="w-3 h-3 text-aegis-mint animate-spin" />
             ) : (
@@ -483,6 +506,9 @@ export default function Dashboard() {
           box-shadow: 0 0 20px rgba(0, 255, 157, 0.2);
         }
       `}</style>
+
+      {/* Audio Bridge Component */}
+      <AudioPlayer audioChunk={currentAudio} isMuted={isMuted} />
     </div>
   )
 }
