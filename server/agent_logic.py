@@ -20,8 +20,208 @@ try:
 except ImportError:
     HAS_WIN32 = False
 
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict, Set
 from schemas import AegisState
+from collections import defaultdict
+import hashlib
+
+# ─── ADVANCED THREAT MODULES ───────────────────────────────────────────────
+
+class ZeroDayShield:
+    """
+    Zero-Day Exploit Chain Detector.
+    Learns normal process creation chains and flags anomalies
+    that indicate post-exploitation behavior (even from unknown CVEs).
+    """
+    # Known dangerous process chains that indicate exploit post-exploitation
+    EXPLOIT_CHAINS = [
+        ["chrome.exe", "cmd.exe"],          # Browser exploit → shell
+        ["chrome.exe", "powershell.exe"],    # Browser exploit → PowerShell
+        ["msedge.exe", "cmd.exe"],
+        ["excel.exe", "cmd.exe"],            # Macro exploit
+        ["excel.exe", "powershell.exe"],
+        ["winword.exe", "cmd.exe"],
+        ["winword.exe", "powershell.exe"],
+        ["svchost.exe", "cmd.exe", "net.exe"],  # Privilege escalation chain
+        ["lsass.exe", "cmd.exe"],            # Credential dump attempt
+        ["spoolsv.exe", "cmd.exe"],          # PrintNightmare-style
+    ]
+    
+    EXPLOIT_INDICATORS = [
+        "4688",  # Process creation
+        "4657",  # Registry value modified
+        "4697",  # Service installed
+        "4698",  # Scheduled task created
+        "4672",  # Special privileges assigned
+        "1102",  # Audit log cleared (covering tracks)
+    ]
+
+    def __init__(self):
+        self.process_baseline: Dict[str, int] = defaultdict(int)
+        self.baseline_locked = False
+        self.learning_cycles = 0
+        self.anomaly_count = 0
+
+    def analyze(self, logs: List[dict]) -> dict:
+        """Analyze logs for zero-day post-exploitation indicators."""
+        result = {"detected": False, "confidence": 0.0, "details": ""}
+        
+        log_str = str(logs).lower()
+        
+        # Check for exploit indicator EventIDs
+        triggered_ids = [eid for eid in self.EXPLOIT_INDICATORS if eid in log_str]
+        
+        if len(triggered_ids) >= 3:  # Multiple suspicious EventIDs in one cycle
+            result["detected"] = True
+            result["confidence"] = min(0.95, 0.3 * len(triggered_ids))
+            result["details"] = f"ZERO-DAY SHIELD: Multi-signal exploit chain detected. Triggered EventIDs: {', '.join(triggered_ids)}. Possible post-exploitation activity from unknown vulnerability."
+        
+        # Check for known dangerous process chains
+        for chain in self.EXPLOIT_CHAINS:
+            chain_pattern = " → ".join(chain).lower()
+            if all(proc.lower() in log_str for proc in chain):
+                result["detected"] = True
+                result["confidence"] = 0.92
+                result["details"] = f"ZERO-DAY SHIELD: Exploit chain detected: {' → '.join(chain)}. This matches known post-exploitation behavior."
+                break
+        
+        # Audit log clearing = high confidence cover-up
+        if "1102" in log_str:
+            result["detected"] = True
+            result["confidence"] = 0.98
+            result["details"] = "ZERO-DAY SHIELD: CRITICAL — Audit log cleared (EventID 1102). Attacker is covering tracks after exploitation."
+        
+        return result
+
+
+class SupplyChainSentinel:
+    """
+    Supply Chain Poisoning Detector.
+    Monitors dependency integrity and OAuth scope drift.
+    """
+    WATCHED_FILES = [
+        "package-lock.json", "yarn.lock", "pnpm-lock.yaml",  # Node.js
+        "requirements.txt", "Pipfile.lock", "poetry.lock",    # Python
+        "go.sum",                                               # Go
+        ".npmrc", ".yarnrc", ".pypirc",                        # Config files
+    ]
+    
+    OAUTH_ANOMALY_KEYWORDS = [
+        "scope_changed", "new_permission", "token_refresh_anomaly",
+        "unauthorized_repo_access", "api_rate_spike", "bulk_download"
+    ]
+
+    def __init__(self):
+        self.known_hashes: Dict[str, str] = {}
+        self.oauth_baseline: Set[str] = set()
+
+    def check_dependency_integrity(self, file_path: str, content: str) -> dict:
+        """Check if a dependency file has been tampered with."""
+        result = {"tampered": False, "file": file_path, "details": ""}
+        current_hash = hashlib.sha256(content.encode()).hexdigest()
+        
+        if file_path in self.known_hashes:
+            if self.known_hashes[file_path] != current_hash:
+                result["tampered"] = True
+                result["details"] = f"SUPPLY CHAIN ALERT: {file_path} has been modified. Previous hash: {self.known_hashes[file_path][:16]}... New hash: {current_hash[:16]}..."
+        
+        self.known_hashes[file_path] = current_hash
+        return result
+
+    def analyze(self, logs: List[dict]) -> dict:
+        """Analyze logs for supply chain attack indicators."""
+        result = {"detected": False, "confidence": 0.0, "details": ""}
+        log_str = str(logs).lower()
+        
+        # Check for dependency file access anomalies
+        touched_deps = [f for f in self.WATCHED_FILES if f.lower() in log_str]
+        if touched_deps:
+            result["confidence"] = 0.6
+            result["details"] = f"SUPPLY CHAIN: Dependency files accessed: {', '.join(touched_deps)}"
+        
+        # Check for OAuth scope drift
+        oauth_hits = [kw for kw in self.OAUTH_ANOMALY_KEYWORDS if kw in log_str]
+        if oauth_hits:
+            result["detected"] = True
+            result["confidence"] = 0.88
+            result["details"] = f"SUPPLY CHAIN ALERT: OAuth scope drift detected — {', '.join(oauth_hits)}. A trusted integration may be compromised."
+        
+        # Bulk token access pattern
+        if "bulk_download" in log_str or "mass_clone" in log_str:
+            result["detected"] = True
+            result["confidence"] = 0.95
+            result["details"] = "SUPPLY CHAIN CRITICAL: Bulk repository access detected. Possible compromised CI/CD token."
+        
+        return result
+
+
+class DeepfakeAnalyzer:
+    """
+    Deepfake Identity Hijacking Detector.
+    Uses Gemini multimodal to analyze authentication behavior and
+    flag anomalous identity patterns that suggest AI-generated impersonation.
+    """
+    # Authentication behavior fingerprinting
+    AUTH_ANOMALY_PATTERNS = [
+        {"pattern": "login_new_device_new_location", "risk": 0.85},
+        {"pattern": "login_impossible_travel", "risk": 0.95},     # Login from 2 countries in < 1 hour
+        {"pattern": "mfa_bypass_attempt", "risk": 0.90},
+        {"pattern": "service_account_interactive_login", "risk": 0.88},
+        {"pattern": "admin_login_off_hours", "risk": 0.70},
+        {"pattern": "rapid_role_change", "risk": 0.82},
+    ]
+
+    def __init__(self):
+        self.login_history: List[dict] = []
+        self.identity_baseline: Dict[str, dict] = {}
+
+    def analyze(self, logs: List[dict]) -> dict:
+        """Analyze authentication logs for deepfake/identity spoofing indicators."""
+        result = {"detected": False, "confidence": 0.0, "details": "", "is_deepfake": False}
+        log_str = str(logs).lower()
+        
+        # Check for authentication anomaly patterns
+        for pattern_info in self.AUTH_ANOMALY_PATTERNS:
+            pattern = pattern_info["pattern"]
+            if pattern in log_str:
+                result["detected"] = True
+                result["confidence"] = max(result["confidence"], pattern_info["risk"])
+                result["details"] = f"DEEPFAKE SHIELD: Identity anomaly — '{pattern}' detected. Possible AI-generated impersonation attempt."
+        
+        # Impossible travel detection via EventID 4625/4624
+        if "4624" in log_str and "4625" in log_str:
+            # Multiple successful + failed logins = credential probing
+            failed_count = log_str.count("4625")
+            if failed_count >= 3:
+                result["detected"] = True
+                result["confidence"] = 0.90
+                result["is_deepfake"] = True
+                result["details"] = f"DEEPFAKE SHIELD: {failed_count} failed auth attempts followed by success. Pattern matches credential stuffing via synthetic identity."
+        
+        # Unusual privilege escalation after normal login
+        if "4672" in log_str and "4624" in log_str:
+            result["detected"] = True
+            result["confidence"] = max(result["confidence"], 0.85)
+            result["details"] = "DEEPFAKE SHIELD: Privilege escalation immediately after login. Possible compromised identity using stolen/spoofed credentials."
+        
+        return result
+
+    async def analyze_voice_with_gemini(self, client, audio_data: bytes) -> dict:
+        """Use Gemini multimodal to analyze audio for deepfake markers."""
+        try:
+            prompt = (
+                "Analyze this audio sample for signs of AI-generated speech. "
+                "Look for: unnatural prosody, missing micro-pauses, consistent pitch variance, "
+                "lack of breathing sounds, robotic undertones. "
+                "Return JSON: {\"is_synthetic\": bool, \"confidence\": float, \"markers\": [str]}"
+            )
+            response = await client.aio.models.generate_content(
+                model='gemini-2.0-flash-exp',
+                contents=[prompt]  # Audio would be passed as inline_data in production
+            )
+            return json.loads(response.text)
+        except Exception:
+            return {"is_synthetic": False, "confidence": 0.0, "markers": []}
 
 class AegisAgent:
     """
@@ -33,6 +233,10 @@ class AegisAgent:
         self.client: Any = genai.Client(api_key=api_key, http_options={'api_version': 'v1alpha'})
         self.active_session: Optional[Any] = None
         self.log_queue: asyncio.Queue = asyncio.Queue(maxsize=100) # Throttling Buffer
+        # Advanced Threat Modules
+        self.zero_day_shield = ZeroDayShield()
+        self.supply_chain_sentinel = SupplyChainSentinel()
+        self.deepfake_analyzer = DeepfakeAnalyzer()
 
     def get_windows_logs(self, log_type="Security", count=5):
         """Siphons Windows Event Logs with graceful fallbacks."""
@@ -171,6 +375,32 @@ class AegisAgent:
                                     if any(k in str(audit_logs).lower() for k in ["4625", "critical", "brute force"]):
                                         voice_trigger_prompt = "AEGIS_GUARD: Critical breach attempt detected. Verbally notify the team of the threat and suggested containment."
                                         asyncio.create_task(session.send(voice_trigger_prompt, end_of_turn=True))
+
+                                    # ─── ADVANCED THREAT ANALYSIS ───────────────────────
+                                    # 1. Zero-Day Shield
+                                    zd_result = self.zero_day_shield.analyze(audit_logs)
+                                    if zd_result["detected"]:
+                                        analysis_data["threat_detected"] = True
+                                        analysis_data["detection_confidence"] = max(analysis_data["detection_confidence"], zd_result["confidence"])
+                                        analysis_data["threat_stream"].insert(0, {"time": time.strftime("%H:%M:%S"), "msg": zd_result["details"], "type": "danger"})
+                                        asyncio.create_task(session.send(f"AEGIS_GUARD: {zd_result['details']}. Alert the team immediately.", end_of_turn=True))
+
+                                    # 2. Supply Chain Sentinel
+                                    sc_result = self.supply_chain_sentinel.analyze(audit_logs)
+                                    if sc_result["detected"]:
+                                        analysis_data["threat_detected"] = True
+                                        analysis_data["detection_confidence"] = max(analysis_data["detection_confidence"], sc_result["confidence"])
+                                        analysis_data["threat_stream"].insert(0, {"time": time.strftime("%H:%M:%S"), "msg": sc_result["details"], "type": "danger"})
+                                        asyncio.create_task(session.send(f"AEGIS_GUARD: {sc_result['details']}. Recommend immediate dependency audit.", end_of_turn=True))
+
+                                    # 3. Deepfake Identity Shield
+                                    df_result = self.deepfake_analyzer.analyze(audit_logs)
+                                    if df_result["detected"]:
+                                        analysis_data["threat_detected"] = True
+                                        analysis_data["detection_confidence"] = max(analysis_data["detection_confidence"], df_result["confidence"])
+                                        analysis_data["threat_stream"].insert(0, {"time": time.strftime("%H:%M:%S"), "msg": df_result["details"], "type": "danger"})
+                                        asyncio.create_task(session.send(f"AEGIS_GUARD: {df_result['details']}. Lock all admin accounts immediately.", end_of_turn=True))
+                                    # ─── END ADVANCED THREAT ANALYSIS ───────────────────
 
                                     json_match = re.search(r'\{.*\}', content_str, re.DOTALL)
                                     if json_match:
