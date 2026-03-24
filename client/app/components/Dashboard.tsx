@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Shield, 
@@ -169,7 +169,13 @@ export default function Dashboard() {
       
       ws.onclose = () => {
         setIsLive(false)
+        addLog({ time: new Date().toLocaleTimeString(), msg: "SYSTEM: Link Dropped — Reconnecting in 3s...", type: "system" })
         setTimeout(connect, 3000)
+      }
+
+      ws.onerror = (err) => {
+        console.error('[WS-ERR]', err)
+        addLog({ time: new Date().toLocaleTimeString(), msg: "SYSTEM: WebSocket Error — Auto-Recovery Active", type: "danger" })
       }
     }
     
@@ -177,9 +183,9 @@ export default function Dashboard() {
     return () => wsRef.current?.close()
   }, [])
 
-  const addLog = (log: any) => {
-    setLogs(prev => [log, ...prev].slice(0, 50))
-  }
+  const addLog = useCallback((log: any) => {
+    setLogs(prev => [log, ...prev].slice(0, 30))
+  }, [])
 
   const handleNeutralize = async () => {
     if (!analysis) return

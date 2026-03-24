@@ -36,13 +36,20 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Aegis ADK Cyber-Shield API", lifespan=lifespan)
 
-# Stabilized CORS: Restrict to known dashboard origin
+# Stabilized CORS: Strict origin control (NO wildcard)
+allowed_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://aegis-client-314798214199.us-central1.run.app",
+    "https://aegis-server-314798214199.us-central1.run.app",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
 )
 
 class ConnectionManager:
@@ -196,6 +203,17 @@ async def reset():
     await save_state_to_firestore() # Persist the reset
     await manager.broadcast({"type": "RESET_STATE"})
     return {"status": "RESET_SUCCESS"}
+
+@app.get("/health")
+async def health_check():
+    """Cloud Run health check endpoint for container readiness."""
+    return {
+        "status": "HEALTHY",
+        "version": "Seed-V2",
+        "modules": ["ZeroDayShield", "SupplyChainSentinel", "DeepfakeAnalyzer"],
+        "uptime": time.strftime("%H:%M:%S"),
+        "firestore": "connected" if db else "offline"
+    }
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8081)

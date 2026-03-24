@@ -1,0 +1,37 @@
+# Aegis Server - Docker Ignore
+# Exclude unnecessary files from container build
+
+__pycache__/
+*.pyc
+*.pyo
+.pyre/
+.mypy_cache/
+.pytest_cache/
+*.egg-info/
+
+# Test files (not needed in production)
+*_test.py
+test_*.py
+stress_test.py
+
+# Environment files
+.env
+.env.local
+*.log
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Node modules (if accidentally present)
+node_modules/
+
+# Documentation
+README.md
+*.md
